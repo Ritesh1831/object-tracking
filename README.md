@@ -2,6 +2,9 @@
 
 A **high-performance, user-friendly web app** for **object detection and tracking** in videos, built using **OpenCV** and **Streamlit**. Designed for speed, clarity, and real-world usability.
 
+<img width="1445" height="673" alt="image" src="https://github.com/user-attachments/assets/782fc06e-3f66-441e-9bdf-42a7807eacd3" />
+
+
 
 ## 📌 Overview
 
@@ -50,7 +53,7 @@ Perfect for:
 * **Language**: Python 3.8+
 * **Framework**: Streamlit
 * **Computer Vision**: OpenCV
-* **Deployment Friendly**: Local / GitHub Codespaces
+
 
 ---
 
@@ -76,29 +79,6 @@ http://localhost:8501
 
 ---
 
-## 🐳 Run in GitHub Codespaces
-
-1. Install system dependencies
-
-```bash
-sudo apt-get update && sudo apt-get install -y libgl1
-```
-
-2. Install Python requirements
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Run Streamlit
-
-```bash
-streamlit run app.py --server.port 8000 --server.address 0.0.0.0
-```
-
-4. Open the **forwarded port** in your browser 🚀
-
----
 
 ## 🚀 Why This Version Is Faster
 
@@ -117,7 +97,7 @@ Net result: **Less lag. Faster processing. Cleaner output.**
 
 * Object tracking demos
 * CV pipeline prototyping
-* Academic & final-year projects
+* Academic & final-year project
 * Performance benchmarking
 
 ---
