@@ -42,9 +42,17 @@ if uploaded_file is not None:
 
         # Initialize tracker and detector
         tracker = EuclideanDistTracker()
-        object_detector = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=40)
+
+        # Tuned MOG2: longer history, lower threshold = more sensitive detection
+        object_detector = cv2.createBackgroundSubtractorMOG2(
+            history=300, varThreshold=25, detectShadows=False  # detectShadows=False removes grey shadow pixels
+        )
+
+        # Morphological kernel to clean up noise in the mask
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
         cap = cv2.VideoCapture(video_path)
+        total_video_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # Output file
         output_path = f"output_{datetime.now().strftime('%H%M%S')}.mp4"
@@ -67,14 +75,19 @@ if uploaded_file is not None:
 
             # Resize frame
             frame = cv2.resize(frame, (resize_width, int(resize_width * 0.5625)))
-
-            # Region of interest (here using whole frame)
             roi = frame
 
             # Object detection
             mask = object_detector.apply(roi)
+
+            # Remove shadows and threshold
             _, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
-            contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            # Morphological cleanup: remove small noise, fill gaps
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)   # remove noise
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)  # fill holes
+
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # RETR_EXTERNAL avoids nested contours
             detections = []
             for cnt in contours:
                 area = cv2.contourArea(cnt)
@@ -94,8 +107,9 @@ if uploaded_file is not None:
             out.write(frame)
             processed_frames += 1
 
-            # Update progress
-            progress.progress(min(1.0, frame_count / cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+            # Update progress (use total_video_frames for accuracy)
+            if total_video_frames > 0:
+                progress.progress(min(1.0, frame_count / total_video_frames))
 
         cap.release()
         out.release()
