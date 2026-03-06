@@ -1,18 +1,19 @@
 import math
 
-
 class EuclideanDistTracker:
     def __init__(self):
         # Store the center positions of the objects
         self.center_points = {}
+        # Track how many frames each object has been missing
+        self.missing_count = {}
         # Keep the count of the IDs
-        # each time a new object id detected, the count will increase by one
         self.id_count = 0
-
+        # Max frames to keep a lost object before removing it
+        self.max_missing = 5
 
     def update(self, objects_rect):
-        # Objects boxes and ids
         objects_bbs_ids = []
+        matched_ids = set()
 
         # Get center point of new object
         for rect in objects_rect:
@@ -20,33 +21,45 @@ class EuclideanDistTracker:
             cx = (x + x + w) // 2
             cy = (y + y + h) // 2
 
-            # Find out if that object was detected already
             same_object_detected = False
+            best_id = None
+            best_dist = float('inf')
+
+            # Find the closest existing object (instead of first match)
             for id, pt in self.center_points.items():
                 dist = math.hypot(cx - pt[0], cy - pt[1])
+                if dist < 50 and dist < best_dist:  # Increased threshold: 25 → 50
+                    best_dist = dist
+                    best_id = id
 
-                if dist < 25:
-                    self.center_points[id] = (cx, cy)
-                    print(self.center_points)
-                    objects_bbs_ids.append([x, y, w, h, id])
-                    same_object_detected = True
-                    break
+            if best_id is not None:
+                self.center_points[best_id] = (cx, cy)
+                self.missing_count[best_id] = 0  # Reset missing counter
+                objects_bbs_ids.append([x, y, w, h, best_id])
+                matched_ids.add(best_id)
+                same_object_detected = True
 
-            # New object is detected we assign the ID to that object
-            if same_object_detected is False:
+            if not same_object_detected:
                 self.center_points[self.id_count] = (cx, cy)
+                self.missing_count[self.id_count] = 0
                 objects_bbs_ids.append([x, y, w, h, self.id_count])
+                matched_ids.add(self.id_count)
                 self.id_count += 1
 
-        # Clean the dictionary by center points to remove IDS not used anymore
+        # Increment missing count for unmatched objects
+        for id in list(self.center_points.keys()):
+            if id not in matched_ids:
+                self.missing_count[id] = self.missing_count.get(id, 0) + 1
+
+        # Only remove objects missing for too long
         new_center_points = {}
-        for obj_bb_id in objects_bbs_ids:
-            _, _, _, _, object_id = obj_bb_id
-            center = self.center_points[object_id]
-            new_center_points[object_id] = center
+        new_missing_count = {}
+        for id, pt in self.center_points.items():
+            if self.missing_count.get(id, 0) <= self.max_missing:
+                new_center_points[id] = pt
+                new_missing_count[id] = self.missing_count.get(id, 0)
 
-        # Update dictionary with IDs not used removed
-        self.center_points = new_center_points.copy()
+        self.center_points = new_center_points
+        self.missing_count = new_missing_count
+
         return objects_bbs_ids
-
-
