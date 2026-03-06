@@ -48,11 +48,14 @@ if uploaded_file is not None:
             history=300, varThreshold=25, detectShadows=False  # detectShadows=False removes grey shadow pixels
         )
 
-        # Morphological kernel to clean up noise in the mask
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        # Two kernels: small for noise removal, large for merging fragmented blobs
+        kernel_clean = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        kernel_merge = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
 
         cap = cv2.VideoCapture(video_path)
         total_video_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_area = resize_width * int(resize_width * 0.5625)
+        max_area = frame_area * 0.4  # ignore detections covering >40% of frame (background glitches)
 
         # Output file
         output_path = f"output_{datetime.now().strftime('%H%M%S')}.mp4"
@@ -77,21 +80,24 @@ if uploaded_file is not None:
             frame = cv2.resize(frame, (resize_width, int(resize_width * 0.5625)))
             roi = frame
 
-            # Object detection
-            mask = object_detector.apply(roi)
+            # Object detection — fixed learning rate prevents background adapting too fast
+            mask = object_detector.apply(roi, learningRate=0.005)
 
-            # Remove shadows and threshold
+            # Threshold out shadows and weak detections
             _, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
 
-            # Morphological cleanup: remove small noise, fill gaps
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)   # remove noise
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)  # fill holes
+            # Step 1: remove salt-and-pepper noise
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_clean)
+            # Step 2: dilate to merge nearby fragments of the same object into one blob
+            mask = cv2.dilate(mask, kernel_merge, iterations=2)
+            # Step 3: fill holes inside merged blobs
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_merge)
 
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # RETR_EXTERNAL avoids nested contours
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             detections = []
             for cnt in contours:
                 area = cv2.contourArea(cnt)
-                if area > min_area:
+                if min_area < area < max_area:  # filter both too-small noise AND huge glitches
                     x, y, w, h = cv2.boundingRect(cnt)
                     detections.append([x, y, w, h])
 
